@@ -1,3 +1,3 @@
 # c3p
-Cash carry strategy research materials for crypto assets (Crypto Cash Carry Profiting)
+Cash and carry strategy research materials for crypto assets (Crypto Cash Carry Profiting)
 
