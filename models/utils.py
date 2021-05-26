@@ -4,7 +4,7 @@ import calendar
 from dateutil import relativedelta
 import pandas as pd
 from dataclasses import dataclass
-from ira.utils.nb_functions import z_load, z_save
+from ira.utils.nb_functions import z_load, z_save, z_ls
 from ira.datasource.DataSource import DataSource
 
 
@@ -78,51 +78,45 @@ def contracts_for(symbol):
             contr = f'{basis}{m}{y}'
             started = bitmex_lookup_contract_start_date(contr)
             if started:
-                contracts.append(Contract(symbol, contr, started, bitmex_contract_expiration(contr)))
+                contracts.append(Contract(symbol, contr, pd.Timestamp(started, tz='UTC'), bitmex_contract_expiration(contr)))
     return contracts
 
 
-def load_contracts_ohlc_data(contract, timeframe='1Min'):
+def _load_data_from_ds(symbol, start, end, timeframe):
     # preprocess timeframe for DataSource
     tfi = re.findall('(\d+)(\w+)', timeframe)[0]
     timeframe = f'{tfi[0]}{tfi[1][:1].lower()}'
     
-    print(f' > Loading {contract.name} {timeframe} for {contract.started} : {end_date} ... ', end='')
-    end_date = pd.Timestamp.now('UTC') if contract.active() else contract.expiration + pd.Timedelta('7h')
+    print(f' > Loading {symbol} {timeframe} for {start} : {end} ... ', end='')
     
     # skip if already exists
-    if z_ls(f'm1/BITMEXH:{contract.name}'):
+    if z_ls(f'm1/BITMEXH:{symbol}'):
         print(' already in database [OK]')
         return 
     
     # loading from db
     with DataSource('kdb::bitmexh') as ds:
-        fdata = ds.load_data([contract.name], contract.started, end_date, timeframe=timeframe)
+        fdata = ds.load_data([symbol], start, end, timeframe=timeframe)
         
-    print('[OK]\b > Storing into DB ...', end='')
-    z_save(f'm1/BITMEXH:{contract.name}', fdata)
+    print('[OK]\n > Storing into DB ...', end='')
+    z_save(f'm1/BITMEXH:{symbol}', fdata)
     print('[OK]')
-    
+
     
 def load_all_contracts_data(symbol, timeframe='1Min'):
     """
     Load historical data for all contracts for symbol into local database
     """
     symbol = symbol.upper()
-    ever_start_date = pd.Timestamp.now()
-    ever_end_date = pd.Timestamp('1970-01-01')
+    ever_start_date = pd.Timestamp.now('UTC')
     
     for c in contracts_for(symbol):
-        load_contracts_ohlc_data(c, timeframe)
+        end_date = pd.Timestamp.now('UTC') if c.active() else c.expiration + pd.Timedelta('7h')
+        _load_data_from_ds(c.name, c.started, end_date, timeframe)
         
         if c.started < ever_start_date:
             ever_start_date = c.started
-    
-    if not z_ls(f'm1/BITMEXH:{symbol}'):
-        with DataSource('kdb::bitmexh') as ds:
-            fdata = ds.load_data([symbol], ever_start_date, pd.Timestamp.now('UTC'), timeframe=timeframe)
-
-        print('[OK]\b > Storing underlying into DB ...', end='')
-        z_save(f'm1/BITMEXH:{symbol}', fdata)
-        print('[OK]')
+            
+    # load underlying data
+    _load_data_from_ds(symbol, ever_start_date, pd.Timestamp.now('UTC'), timeframe)
     
