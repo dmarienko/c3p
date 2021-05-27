@@ -99,7 +99,7 @@ def _load_data_from_ds(symbol, start, end, timeframe):
         fdata = ds.load_data([symbol], start, end, timeframe=timeframe)
         
     print('[OK]\n > Storing into DB ...', end='')
-    z_save(f'm1/BITMEXH:{symbol}', fdata)
+    z_save(f'm1/BITMEXH:{symbol}', fdata[symbol])
     print('[OK]')
 
     
