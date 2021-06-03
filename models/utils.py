@@ -5,7 +5,9 @@ from dateutil import relativedelta
 import pandas as pd
 from dataclasses import dataclass
 from ira.utils.nb_functions import z_load, z_save, z_ls
+from ira.utils.utils import mstruct
 from ira.datasource.DataSource import DataSource
+from alpha.utils.tick_loaders import load_data
 
 
 MONTHS = {
@@ -120,3 +122,18 @@ def load_all_contracts_data(symbol, timeframe='1Min'):
     # load underlying data
     _load_data_from_ds(symbol, ever_start_date, pd.Timestamp.now('UTC'), timeframe)
     
+    
+def prepare_data(underlying, conversion=None):
+    """
+    Prepare data in more convenient presentation
+    """
+    ctrs = contracts_for(underlying)
+    symbols = {f'BITMEXH:{x.name}' for x in ctrs} | {f'BITMEXH:{underlying}',}
+    
+    return mstruct(
+        underlying = underlying, ctrs = ctrs, symbols=symbols, 
+        data = load_data(*symbols),
+        # ETH, LTC, EOS are nominated in BTC so we need to convert to USD
+        conv_data = load_data(f'BITMEXH:{conversion}') if conversion else None,
+        conv_symbol = conversion,
+    )
